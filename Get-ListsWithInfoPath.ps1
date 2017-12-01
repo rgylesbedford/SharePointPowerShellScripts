@@ -4,59 +4,88 @@
 }
 process {
 
-Get-SPWebApplication | Get-SPContentDatabase | Get-SPSite -Limit ALL | Get-SPWeb -Limit ALL | ForEach {
-    $web = $_
+    $today = Get-Date -format "yyyy-MM-dd-THHmm"
+    $fileName = "$PSScriptRoot\ListsWithInfoPath-$today.csv"
 
-    $WebUrl = $web.Url
-    $SiteUrl = $web.Site.Url
+    Write-Host "Getting ListsWithInfoPath" -ForegroundColor Magenta
 
-    Write-Host "Processing SPWeb $($webUrl)"
+    Get-SPWebApplication | Get-SPContentDatabase | Get-SPSite -Limit ALL | Get-SPWeb -Limit ALL | % {
+        $web = $_
 
-    $web.Lists | ForEach {
-        $list = $_
-        
-        $ListName = $list.Title
-        $ListUrl = "$($web.Url)/$($list.RootFolder.Url)"
-        $ListLastItemModifiedDate = $list.LastItemModifiedDate
-        $ListLastItemDeletedDate = $list.LastItemDeletedDate
-        $ListItemCount = $list.ItemCount
+        $WebUrl = $web.Url
+        $SiteUrl = $web.Site.Url
 
-        $vti_timelastmodified = $list.RootFolder.Properties["vti_timelastmodified"]
-        $vti_dirlateststamp = $list.RootFolder.Properties["vti_dirlateststamp"]
-        $vti_timecreated = $list.RootFolder.Properties["vti_timecreated"]
+        Write-Host "Processing SPWeb $webUrl" -ForegroundColor Yellow
 
-        $list.ContentTypes | ForEach {
-            $contentType = $_
+        $web.Lists | ForEach {
+            $list = $_
+            $ListId = $list.Id
 
-            $hasInfoPathNewItemForm = $contentType.NewFormUrl -like "*newifs.aspx"
-            $hasInfoPathEditItemForm = $contentType.EditFormUrl -like "*editifs.aspx"
-            $hasInfoPathDisplayForm = $contentType.DisplayFormUrl -like "*displayifs.aspx"
+            $ListName = $list.Title
+            $ListUrl = "$($web.Url)/$($list.RootFolder.Url)"
+            $ListLastItemModifiedDate = $list.LastItemModifiedDate
+            $ListLastItemDeletedDate = $list.LastItemDeletedDate
+            $ListItemCount = $list.ItemCount
 
-            if($hasInfoPathNewItemForm -or $hasInfoPathEditItemForm -or $hasInfoPathDisplayForm) {
-                $info = New-Object PSObject -Property @{
+
+            $vti_timelastmodified = $list.RootFolder.Properties["vti_timelastmodified"]
+            $vti_dirlateststamp = $list.RootFolder.Properties["vti_dirlateststamp"]
+            $vti_timecreated = $list.RootFolder.Properties["vti_timecreated"]
+
+            if($list.BaseTemplate -eq [Microsoft.SharePoint.SPListTemplateType]::XMLForm) {
+                $info = New-Object PSObject -Property ([Ordered] @{
                     SiteUrl = $SiteUrl
                     WebUrl = $WebUrl
                     ListUrl = $ListUrl
                     ListName = $ListName
+                    ListId = $ListId
+                    ListType = $list.BaseTemplate
+                    InfoPathType = "FormLibrary"
                     ListLastItemModifiedDate = $ListLastItemModifiedDate
                     ListLastItemDeletedDate = $ListLastItemDeletedDate
                     ListItemCount = $ListItemCount
                     ListRootFolder_timelastmodified = $vti_timelastmodified
                     ListRootFolder_dirlateststamp = $vti_dirlateststamp
                     ListRootFolder_timecreated = $vti_timecreated
-                    ContentTypeName = $contentType.Name
-                    HasInfoPathNewItemForm = $hasInfoPathNewItemForm
-                    HasInfoPathEditItemForm = $hasInfoPathEditItemForm
-                    HasInfoPathDisplayForm = $hasInfoPathDisplayForm
-                }
+                })
                 Write-Output $info
             }
+            else {
+                $list.ContentTypes | ForEach {
+                    $contentType = $_
+
+                    $hasInfoPathNewItemForm = $contentType.NewFormUrl -like "*newifs.aspx"
+                    $hasInfoPathEditItemForm = $contentType.EditFormUrl -like "*editifs.aspx"
+                    $hasInfoPathDisplayForm = $contentType.DisplayFormUrl -like "*displayifs.aspx"
+
+                    if($hasInfoPathNewItemForm -or $hasInfoPathEditItemForm -or $hasInfoPathDisplayForm) {
+                        $info = New-Object PSObject -Property ([Ordered] @{
+                            SiteUrl = $SiteUrl
+                            WebUrl = $WebUrl
+                            ListUrl = $ListUrl
+                            ListName = $ListName
+                            ListId = $ListId
+                            ListType = $list.BaseTemplate
+                            InfoPathType = "ListWithInfoPath"
+                            ListLastItemModifiedDate = $ListLastItemModifiedDate
+                            ListLastItemDeletedDate = $ListLastItemDeletedDate
+                            ListItemCount = $ListItemCount
+                            ListRootFolder_timelastmodified = $vti_timelastmodified
+                            ListRootFolder_dirlateststamp = $vti_dirlateststamp
+                            ListRootFolder_timecreated = $vti_timecreated
+                            ContentTypeName = $contentType.Name
+                            ContentTypeHasInfoPathNewItemForm = $hasInfoPathNewItemForm
+                            ContentTypeHasInfoPathEditItemForm = $hasInfoPathEditItemForm
+                            ContentTypeHasInfoPathDisplayForm = $hasInfoPathDisplayForm
+                        })
+                        Write-Output $info
+                    }
+                }
+            }
         }
-    }
-} | Export-Csv "$PSScriptRoot\ListsWithInfoPathForms.csv" -NoTypeInformation 
+    } | Export-Csv $fileName -NoTypeInformation -Encoding UTF8
 
+    Write-Host "Done - output saved to $fileName" -ForegroundColor Green
 }
 
-end {
-    Write-Host "Done"
-}
+end {}

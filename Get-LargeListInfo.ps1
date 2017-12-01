@@ -3,21 +3,34 @@
     if ((Get-PSSnapin "Microsoft.SharePoint.PowerShell" -ErrorAction SilentlyContinue) -eq $null) { Add-PSSnapin "Microsoft.SharePoint.PowerShell" }
 }
 process {
+    
+    $today = Get-Date -format "yyyy-MM-dd-THHmm"
+    $fileName = "$PSScriptRoot\LargeLists-$today.csv"
+
+
+
     Get-SPWebApplication | Get-SPContentDatabase | Get-SPSite -Limit ALL | Get-SPWeb -Limit ALL | ForEach {
         $web = $_
+
         $webUrl = $web.Url
         $siteUrl = $web.Site.Url
 
         Write-Host "Processing SPWeb $($webUrl)"
 
-        $web.Lists | Where {$_.ItemCount -gt 3000 -and $_.Hidden -eq $false} | ForEach {
-            $list = $_       
-        
-        
+        $web.Lists | Where {$_.ItemCount -gt 3500 -and $_.Hidden -eq $false} | ForEach {
+            $list = $_
+            $ListId = $list.Id
+            
             $listName = $list.Title
             $listFolderCount = $list.Folders.Count
             $listItemCount = $list.ItemCount
             $listUrl = "$($web.Url)/$($list.RootFolder.Url)"
+            $ListLastItemModifiedDate = $list.LastItemModifiedDate
+            $ListLastItemDeletedDate = $list.LastItemDeletedDate
+
+            $vti_timelastmodified = $list.RootFolder.Properties["vti_timelastmodified"]
+            $vti_dirlateststamp = $list.RootFolder.Properties["vti_dirlateststamp"]
+            $vti_timecreated = $list.RootFolder.Properties["vti_timecreated"]
 
             Write-Host "`tChecking List $listName"
         
@@ -51,13 +64,19 @@ process {
 
                 $items = $list.GetItems($query)
 
-                $info = New-Object PSObject -Property @{
+                $info = New-Object PSObject -Property ([Ordered] @{
                     SiteUrl = $siteUrl
                     WebUrl = $webUrl
                     ListName = $listName
                     ListUrl = $listUrl
+                    ListId = $ListId
                     ListItemCount = $listItemCount
                     ListFolderCount = $listFolderCount
+                    ListLastItemModifiedDate = $ListLastItemModifiedDate
+                    ListLastItemDeletedDate = $ListLastItemDeletedDate
+                    ListRootFolder_timelastmodified = $vti_timelastmodified
+                    ListRootFolder_dirlateststamp = $vti_dirlateststamp
+                    ListRootFolder_timecreated = $vti_timecreated
                     ViewName = $view.Title                    
                     ViewScope = $view.Scope
                     ViewUrl = "$($web.Url)/$($view.Url)"
@@ -74,11 +93,11 @@ process {
                     Sorting = $Sorting
                     HasAggregations = $view.AggregationsStatus
                     Aggregations = $view.Aggregations
-                }
+                })
                 Write-Output $info
             }
         }
-    } | Export-Csv "$PSScriptRoot\LargeLists.csv" -NoTypeInformation 
+    } | Export-Csv $fileName -NoTypeInformation -Encoding UTF8
 }
 end {
     Write-Host "Done"
