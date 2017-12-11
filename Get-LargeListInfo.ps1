@@ -1,4 +1,8 @@
-﻿begin {
+﻿param (
+    [Parameter(Mandatory=$true, ValueFromPipelineByPropertyName=$true)]
+    [string] $WebApplicationUrl
+)
+begin {
     if ($host.Version.Major -gt 1) { $host.Runspace.ThreadOptions = "ReuseThread" }
     if ((Get-PSSnapin "Microsoft.SharePoint.PowerShell" -ErrorAction SilentlyContinue) -eq $null) { Add-PSSnapin "Microsoft.SharePoint.PowerShell" }
 }
@@ -9,7 +13,7 @@ process {
 
 
 
-    Get-SPWebApplication | Get-SPContentDatabase | Get-SPSite -Limit ALL | Get-SPWeb -Limit ALL | ForEach {
+    Get-SPWebApplication $WebApplicationUrl | Get-SPContentDatabase | Get-SPSite -Limit ALL | Get-SPWeb -Limit ALL | ForEach {
         $web = $_
 
         $webUrl = $web.Url
@@ -99,6 +103,4 @@ process {
         }
     } | Export-Csv $fileName -NoTypeInformation -Encoding UTF8
 }
-end {
-    Write-Host "Done"
-}
+end {}

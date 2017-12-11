@@ -1,4 +1,12 @@
-﻿begin {
+﻿[CmdletBinding(DefaultParameterSetName="SpecificWebApplication")]
+param (
+    [Parameter(Mandatory=$true, ValueFromPipelineByPropertyName=$true, ParameterSetName="SpecificWebApplication")]
+    [string] $WebApplicationUrl,
+
+    [Parameter(Mandatory=$true, ValueFromPipelineByPropertyName=$true, ParameterSetName="AllWebApplications")]
+    [switch] $AllWebApplications
+)
+begin {
     if ($host.Version.Major -gt 1) { $host.Runspace.ThreadOptions = "ReuseThread" }
     if ((Get-PSSnapin "Microsoft.SharePoint.PowerShell" -ErrorAction SilentlyContinue) -eq $null) { Add-PSSnapin "Microsoft.SharePoint.PowerShell" }
 }
@@ -52,10 +60,19 @@ process {
     $fileName = "$PSScriptRoot\Get-SPWebPartInfo-$today.csv"
     Write-Host "Getting SPWebPartsUsedOnPage" -ForegroundColor Magenta
 
-    Get-SPWebApplication | Get-SPContentDatabase | Get-SPSite -Limit All | Get-SPWeb -Limit All | ForEach-Object {
-        Get-SPPagesFromWeb -web $_ | Get-SPWebPartsUsedOnPage -web $_
-    } | Export-Csv $fileName -NoTypeInformation -Encoding UTF8
-
+    switch ($PSCmdlet.ParameterSetName) {
+        "SpecificWebApplication" {
+            Get-SPWebApplication $WebApplicationUrl | Get-SPContentDatabase | Get-SPSite -Limit ALL | Get-SPWeb -Limit All | ForEach-Object {
+                Get-SPPagesFromWeb -web $_ | Get-SPWebPartsUsedOnPage -web $_
+            } | Export-Csv $fileName -NoTypeInformation -Encoding UTF8
+        }
+        "AllWebApplications" {
+            Get-SPWebApplication | Get-SPContentDatabase | Get-SPSite -Limit ALL | Get-SPWeb -Limit All | ForEach-Object {
+                Get-SPPagesFromWeb -web $_ | Get-SPWebPartsUsedOnPage -web $_
+            } | Export-Csv $fileName -NoTypeInformation -Encoding UTF8
+        } 
+    }
+    
     Write-Host "Done - output saved to $fileName" -ForegroundColor Green
 }
 
